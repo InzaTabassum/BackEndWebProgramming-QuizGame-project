@@ -1,0 +1,19 @@
+meta {
+  name: Edit Question
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{baseUrl}}/1
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+  "question": "what is not the capital of Finland?",
+  "Answer": "Turku",
+  "keywords": ["Finland", "cold"]
+  }
+}
