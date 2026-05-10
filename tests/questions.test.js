@@ -184,6 +184,21 @@ describe("PUT /api/questions/:qId", () => {
     expect(res.body.question).toBe("Updated Q");
   });
 
+  it("updates own question with an image upload", async () => {
+    const token = await registerAndLogin();
+    const created = await createQuestion(token, { question: "Q1", Answer: "A1" });
+
+    const res = await request(app).put(`/api/questions/${created.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .attach("image", Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), "picture.png")
+      .field("question", "Updated Q")
+      .field("Answer", "Updated A");
+
+    expect(res.status).toBe(200);
+    expect(res.body.question).toBe("Updated Q");
+    expect(res.body.imageUrl).toContain("/uploads/");
+  });
+
   it("returns 404 when question does not exist", async () => {
     const token = await registerAndLogin();
     const res = await request(app).put("/api/questions/99999")
