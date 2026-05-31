@@ -19,6 +19,7 @@ function authenticate(req, res, next) {
     next();
   } catch (err) {
     req.log.warn({}, "Error authenticating");
+    
     throw new ForbiddenError("Invalid or expired token");
   }
 }

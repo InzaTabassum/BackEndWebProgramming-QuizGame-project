@@ -114,13 +114,14 @@ async function showApp() {
   await loadQuestions();
 }
 
-async function loadQuestions(keyword = "", page = 1) {
+async function loadQuestions(keyword = "", page = 1, difficulty = "") {
   const container = document.getElementById("questions-container");
   container.innerHTML = '<p class="loading">Loading questions...</p>';
 
   try {
     const params = new URLSearchParams({ page, limit: CONFIG.QUESTIONS_PER_PAGE });
     if (keyword) params.set("keyword", keyword);
+    if (difficulty) params.set("difficulty", difficulty);
     const result = await apiFetch(`${CONFIG.ROUTES.QUESTIONS}?${params}`);
     const { data: questions, total, totalPages } = result;
     const currentUserId = getCurrentUserId();
@@ -140,7 +141,15 @@ async function loadQuestions(keyword = "", page = 1) {
       </div>
       <div class="toolbar">
         <button class="btn btn-primary" id="new-question-btn">+ New Question</button>
+        <button class="btn btn-secondary" id="leaderboard-btn">🏆 Leaderboard</button>
+        <button class="btn btn-primary" id="random-quiz-btn">Random Quiz</button>
         <div class="search-bar">
+        <select id="difficulty-filter" class="difficulty-select">
+        <option value="">All Difficulties</option>
+        <option value="easy">Easy</option>
+        <option value="medium">Medium</option>
+        <option value="hard">Hard</option>
+        </select>
           <input type="text" id="keyword-input" placeholder="Search by keyword..." value="${keyword}" />
           <button class="btn btn-search" id="search-btn">Search</button>
           ${keyword ? `<button class="btn btn-clear" id="clear-btn">Clear</button>` : ""}
@@ -159,8 +168,11 @@ async function loadQuestions(keyword = "", page = 1) {
             ${q[CONFIG.API_FIELDS.SOLVED] ? `<span class="badge-solved">Solved</span>` : ""}
           </h3>
           ${
+
+
             q.keywords && q.keywords.length
-              ? `<div class="question-keywords">${q.keywords.map((k) => `<span class="keyword">${k}</span>`).join("")}</div>`
+              ? `<div class="question-keywords">${q.keywords.map((k) => `<span class="keyword">${k}</span>`).join("")}<span class="difficulty">${q.difficulty || "easy"}</span>
+              </div>`
               : ""
           }
           <div class="question-actions">
@@ -194,14 +206,55 @@ async function loadQuestions(keyword = "", page = 1) {
     container.innerHTML = html;
 
     document.getElementById("new-question-btn").addEventListener("click", () => showQuestionForm());
+    document.getElementById("leaderboard-btn").addEventListener("click", loadLeaderboard);
 
-    document.getElementById("search-btn").addEventListener("click", () => {
-      loadQuestions(document.getElementById("keyword-input").value.trim(), 1);
-    });
+   document.getElementById("search-btn").addEventListener("click", () => {
+  const keyword = document.getElementById("keyword-input").value.trim();
+  const difficulty = document.getElementById("difficulty-filter").value;
+
+  loadQuestions(keyword, 1, difficulty);
+});
 
     document.getElementById("keyword-input").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") loadQuestions(e.target.value.trim(), 1);
+      if (e.key === "Enter") {
+  const difficulty = document.getElementById("difficulty-filter").value;
+  loadQuestions(e.target.value.trim(), 1, difficulty);
+}
+    // if (e.key === "Enter") loadQuestions(e.target.value.trim(), 1);
     });
+
+    document.getElementById("random-quiz-btn").addEventListener("click", async () => {
+  const result = await apiFetch(`${CONFIG.ROUTES.QUESTIONS}/quiz/random`);
+
+  let html = `
+    <h2>Random Quiz</h2>
+
+    <button class="btn btn-primary" id="back-to-questions">
+      Back
+    </button>
+
+    <br><br>
+  `;
+
+  result.data.forEach((q, index) => {
+    html += `
+      <div class="question-card">
+        <h3>${index + 1}. ${q.question}</h3>
+        <div class="tags">
+          ${q.keywords.map(k => `<span class="tag">${k}</span>`).join("")}
+          <span class="tag difficulty">${q.difficulty}</span>
+        </div>
+        <button class="btn btn-play" data-id="${q.id}">PLAY</button>
+      </div>
+    `;
+  });
+
+  document.getElementById("questions-container").innerHTML = html;
+
+  document
+    .getElementById("back-to-questions")
+    .addEventListener("click", () => loadQuestions());
+});
 
     const clearBtn = document.getElementById("clear-btn");
     if (clearBtn) clearBtn.addEventListener("click", () => loadQuestions());
@@ -258,7 +311,7 @@ async function loadQuestionDetail(qId) {
         <p class="question-answer">${q.answer}</p>
         ${
           q.keywords && q.keywords.length
-            ? `<div class="question-keywords">${q.keywords.map((k) => `<span class="keyword">${k}</span>`).join("")}</div>`
+            ? `<div class="question-keywords">${q.keywords.map((k) => `<span class="keyword">${k}</span>`).join("")}<span class="tag difficulty">${q.difficulty || "easy"}</span></div>`
             : ""
         }
         ${
@@ -285,11 +338,54 @@ async function loadQuestionDetail(qId) {
   }
 }
 
+async function loadLeaderboard() {
+  const container = document.getElementById("questions-container");
+
+  try {
+    const result = await apiFetch(
+      `${CONFIG.ROUTES.QUESTIONS}/leaderboard/top`
+    );
+
+    let html = `
+      <h2>🏆 Leaderboard</h2>
+
+      <div class="leaderboard">
+    `;
+
+    result.data.forEach((user, index) => {
+      html += `
+        <div class="leaderboard-item">
+          <span>#${index + 1}</span>
+          <strong>${user.name}</strong>
+          <span>${user.correctAttempts} correct answers</span>
+        </div>
+      `;
+    });
+
+    html += `
+      <br>
+      <button class="btn btn-primary" id="back-to-questions">
+        Back
+      </button>
+      </div>
+    `;
+
+    container.innerHTML = html;
+
+    document
+      .getElementById("back-to-questions")
+      .addEventListener("click", () => loadQuestions());
+
+  } catch (err) {
+    container.innerHTML = `<p class="error">${err.message}</p>`;
+  }
+}
+
 // --- Create / Edit ---
 async function showQuestionForm(qId) {
   const container = document.getElementById("questions-container");
   const isEdit = !!qId;
-  let q = { question: "", answer: "", keywords: [] };
+  let q = { question: "", answer: "", keywords: [], difficulty: ""  };
 
   if (isEdit) {
     try {
@@ -322,6 +418,14 @@ async function showQuestionForm(qId) {
           <input type="file" id="q-image" accept="image/*" />
           ${isEdit && q.imageUrl ? `<img src="${q.imageUrl}" alt="" style="max-width:200px;margin-top:0.5rem;border-radius:4px" />` : ""}
         </div>
+        <div class="form-group">
+          <label for="q-difficulty">Difficulty</label>
+          <select id="q-difficulty">
+            <option value="easy" ${q.difficulty === "easy" ? "selected" : ""}>Easy</option>
+            <option value="medium" ${q.difficulty === "medium" ? "selected" : ""}>Medium</option>
+            <option value="hard" ${q.difficulty === "hard" ? "selected" : ""}>Hard</option>
+          </select>
+        </div>
         <button type="submit" class="btn btn-primary">${isEdit ? "Save Changes" : "Create Question"}</button>
       </form>
       <p id="question-form-error" class="error"></p>
@@ -341,6 +445,7 @@ async function showQuestionForm(qId) {
     body.append("question", document.getElementById("q-question").value);
     body.append("Answer", document.getElementById("q-answer").value);
     body.append("keywords", document.getElementById("q-keywords").value);
+    body.append("difficulty", document.getElementById("q-difficulty").value);
     const imageFile = document.getElementById("q-image").files[0];
     if (imageFile) body.append("image", imageFile);
 
@@ -372,7 +477,8 @@ async function playQuestion(qId) {
         ${q.imageUrl ? `<img class="question-image" src="${q.imageUrl}" alt="" style="margin:0 auto 1rem">` : ""}
         ${
           q.keywords && q.keywords.length
-            ? `<div class="question-keywords" style="justify-content:center;margin-bottom:1.5rem">${q.keywords.map((k) => `<span class="keyword">${k}</span>`).join("")}</div>`
+            ? `<div class="question-keywords" style="justify-content:center;margin-bottom:1.5rem">${q.keywords.map((k) => `<span class="keyword">${k}</span>`).join("")}<span class="difficulty">${q.difficulty || "easy"}</span>
+            </div>`
             : ""
         }
         <form id="play-form" style="text-align:left">

@@ -186,7 +186,16 @@
     .question-card.solved-card {
       border-left: 4px solid #51cf66;
     }
-
+    .difficulty {
+   background: rgba(167, 139, 250, 0.2);
+      color: #51bccf;
+      padding: 0.2rem 0.7rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      border: 1px solid rgba(167, 139, 250, 0.25);
+  }
     .question-image {
       display: block;
       max-width: 100%;
@@ -361,6 +370,23 @@
       width: 200px;
       transition: border-color 0.2s;
     }
+
+        .difficulty-select {
+          padding: 0.75rem 1rem;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 10px;
+          font-size: 0.85rem;
+          color: #f4f2fdf9; 
+          width: 200px;
+          outline: none;
+          cursor: pointer;
+}
+.difficulty-select option {
+  background: #2d1b4e;
+  color: white;
+}
+
 
     .search-bar input:focus {
       outline: none;
@@ -547,6 +573,24 @@
     .play-result.incorrect strong {
       color: #ffd200;
     }
+
+
+    .leaderboard {
+  max-width: 800px;
+  margin: 20px auto;
+}
+
+.leaderboard-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+
+  padding: 15px;
+  margin-bottom: 10px;
+}
 
     /* Score bar */
     .score-bar {

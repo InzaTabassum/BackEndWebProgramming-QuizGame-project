@@ -13,6 +13,7 @@ const QuestionInput = z.object({
   question: z.string().min(1),
   Answer: z.string().min(1),
   keywords: z.union([z.string(), z.array(z.string())]).optional(),
+  difficulty: z.enum(["easy", "medium", "hard"]).optional().default("easy"),
 });
 
 
@@ -41,6 +42,7 @@ function formatQuestion(question) {
     ...question,
     //answer: question.Answer,
     keywords: question.keywords.map((k) => k.name),
+    difficulty: question.difficulty,
     userName: question.user?.name || null,
     solved: question.attempts ? question.attempts.length > 0 : false,
     user: undefined,
@@ -51,12 +53,83 @@ function formatQuestion(question) {
 // Apply authentication to ALL routes in this router
 router.use(authenticate);
 
+// GET /api/questions/leaderboard/top
+router.get("/leaderboard/top", async (req, res) => {
+  const leaderboard = await prisma.attempt.groupBy({
+    by: ["userId"],
+    where: {
+      correct: true,
+    },
+    _count: {
+      userId: true,
+    },
+    orderBy: {
+      _count: {
+        userId: "desc",
+      },
+    },
+    take: 5,
+  });
+
+  const users = await prisma.user.findMany({
+    where: {
+      id: {
+        in: leaderboard.map((item) => item.userId),
+      },
+    },
+  });
+
+  const data = leaderboard.map((item) => {
+    const user = users.find((u) => u.id === item.userId);
+
+    return {
+      userId: item.userId,
+      name: user?.name || "Unknown user",
+      correctAttempts: item._count.userId,
+    };
+  });
+
+  res.json({ data });
+});
+
+
+
+// GET /api/questions/quiz/random
+router.get("/quiz/random", async (req, res) => {
+  const questions = await prisma.question.findMany({
+    include: {
+      keywords: true,
+      user: true,
+      attempts: {
+        where: { userId: req.user.userId, correct: true },
+        take: 1,
+      },
+    },
+  });
+
+  const shuffled = questions.sort(() => Math.random() - 0.5);
+  const quizQuestions = shuffled.slice(0, 10);
+
+  res.json({
+    data: quizQuestions.map(formatQuestion),
+    total: quizQuestions.length,
+  });
+});
+
 
 // GET /api/questions , /api/questions?keyword=capital&page=1&limit=5
 router.get("/", async (req, res) => {
-    const { keyword } = req.query;
+   const { keyword, difficulty } = req.query;
 
-    const where = keyword? { keywords: { some: { name: keyword } } }: {};
+const where = {};
+
+if (keyword) {
+  where.keywords = { some: { name: keyword } };
+}
+
+if (difficulty) {
+  where.difficulty = difficulty;
+}
 
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 5));
@@ -107,7 +180,7 @@ router.get("/:qId", async (req, res) => {
 
 // POST /api/questions
 router.post("/", upload.single("image"), async (req, res) => {
-    const { question, Answer, keywords } = QuestionInput.parse(req.body);
+    const { question, Answer, keywords, difficulty } = QuestionInput.parse(req.body);
 
     const keywordsArray = keywords? keywords.split(",").map((kw) => kw.trim()).filter(Boolean): [];
 
@@ -117,6 +190,7 @@ router.post("/", upload.single("image"), async (req, res) => {
         data: {
             question,
             Answer,
+            difficulty,
             userId: req.user.userId,
             imageUrl,
             keywords: {
@@ -136,7 +210,7 @@ router.post("/", upload.single("image"), async (req, res) => {
 //Put /api/questions/:qId
 router.put("/:qId", upload.single("image"), isOwner, async (req, res) => {
     const qId = Number(req.params.qId);
-    const { question, Answer, keywords } = QuestionInput.parse(req.body);
+    const { question, Answer, keywords, difficulty } = QuestionInput.parse(req.body);
 
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
@@ -149,6 +223,7 @@ router.put("/:qId", upload.single("image"), isOwner, async (req, res) => {
         data: {
             question,
             Answer,
+            difficulty,
             imageUrl,
             keywords: {
                 set: [], 
